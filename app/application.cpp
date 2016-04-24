@@ -35,32 +35,40 @@ bool ledState = false;
 
 static void ICACHE_FLASH_ATTR promiscCallback(uint8* buf, uint16 len)
 {
-	struct RxControl* control = 0;
+	struct RxControl* control = (struct RxControl*) buf;
+	struct IEEE80211_Header* header = 0;
 
+	// Read here for more information:
+	// https://espressif.com/sites/default/files/documentation/8k-esp8266_sniffer_introduction_en_v0.3.pdf
 	if(len == 128) {
 		// packet with header
-		control = (struct RxControl*) buf;
-		buf += sizeof(struct RxControl);
+		header = (struct IEEE80211_Header*) (buf + sizeof(struct RxControl));
+	} else if(len % 10 == 0) {
+		header = (struct IEEE80211_Header*) (buf + sizeof(struct RxControl));
+	} else if(len == 12) {
+		// No buf
+		header = 0;
+	} else {
+		return; // Invalid length!
 	}
 
-	struct IEEE80211_Header* header = (struct IEEE80211_Header*) buf;
+	if (header) {
+		// Ignore beacon frames
+		if (header->frameControl.Type == FRAME_TYPE_MGMT && header->frameControl.Subtype == FRAME_SUBTYPE_BEACON)
+			return;
 
-	// Ignore beacon frames
-	if (header->frameControl.Type == FRAME_TYPE_MGMT && header->frameControl.Subtype == FRAME_SUBTYPE_BEACON)
-		return;
+		Serial.printf("len: %4d, chan: %2d, proto: %d, type: %2d-%2d ", len, wifi_get_channel(), header->frameControl.Protocol, header->frameControl.Type, header->frameControl.Subtype);
 
-	Serial.printf("len: %4d, chan: %2d, proto: %d, type: %2d-%2d ", len, wifi_get_channel(), header->frameControl.Protocol, header->frameControl.Type, header->frameControl.Subtype);
+		Serial.print(formatMAC(header->address1) + " ");
+		Serial.print(formatMAC(header->address2) + " ");
+		Serial.print(formatMAC(header->address3) + " ");
+		Serial.print(formatMAC(header->address4) + " ");
 
-	Serial.print(formatMAC(header->address1) + " ");
-	Serial.print(formatMAC(header->address2) + " ");
-	Serial.print(formatMAC(header->address3) + " ");
-	Serial.print(formatMAC(header->address4));
+		Serial.printf("retry: %d protected: %d seq: %d ", header->frameControl.Retry, header->frameControl.Protectedframe, header->sequenceNumber);
+	}
 
 	// Display rxcontrol at the end of the line for better formatting
-	if (control)
-	{
-		Serial.printf(" [RxControl rssi: %d legacy_length: %d chan: %d]", control->rssi, control->legacy_length, control->channel);
-	}
+	Serial.printf("[RxControl rssi: %d legacy_length: %d chan: %d]", control->rssi, control->legacy_length, control->channel);
 
 	Serial.println();
 

@@ -45,7 +45,7 @@ struct RxControl {
     unsigned ampdu_cnt:8;
     unsigned channel:4;
     unsigned:12;
-};
+} __attribute__((__packed__));
 
 struct IEEE80211_Header
 {
@@ -74,7 +74,10 @@ struct IEEE80211_Header
 	u16 sequenceNumber:12;
 
 	u8 address4[6];
-};
+
+	u8 qosControl[2];
+	u8 htControl[4];
+} __attribute__((__packed__));
 
 #define PROTO_H
 #endif
